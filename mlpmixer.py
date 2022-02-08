@@ -21,7 +21,7 @@ class MlpBlock(tf.keras.layers.Layer):
         self.dropout = tf.keras.layers.Dropout(self.dropout_rate)
 
     def call(self, inputs, *args, **kwargs):
-        return self.w2(tf.nn.gelu(self.w1(inputs)))
+        return self.dropout(self.w2(tf.nn.gelu(self.w1(inputs))))
 
 
 class MixerLayer(tf.keras.layers.Layer):
