@@ -106,8 +106,9 @@ class Gmlp(tf.keras.models.Model):
 
     @tf.function
     def call(self, inputs, training=None, mask=None):
-        aug = self.augmentation(inputs)
-        patches = self.patch_projector(aug)
+        if training:
+            inputs = self.augmentation(inputs)
+        patches = self.patch_projector(inputs)
         featuremap = self.blocks(patches)
         y = self.classifier(featuremap)
         return y

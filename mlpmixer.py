@@ -123,8 +123,9 @@ class MlpMixer(tf.keras.models.Model):
 
     @tf.function
     def call(self, inputs, training=None, mask=None):
-        augs = self.augmentation(inputs)
-        patches = self.PatchConv(augs)
+        if training:
+            inputs = self.augmentation(inputs)
+        patches = self.PatchConv(inputs)
         featuremap = self.Mixers(patches)
         y = self.classifier(featuremap)
         return y

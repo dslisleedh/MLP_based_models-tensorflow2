@@ -150,8 +150,9 @@ class ResMlp(tf.keras.models.Model):
 
     @tf.function
     def call(self, inputs, training=None, mask=None):
-        augs = self.augmentation(inputs)
-        patches = self.patch_projector(augs)
+        if training:
+            inputs = self.augmentation(inputs)
+        patches = self.patch_projector(inputs)
         featuremap = self.blocks(patches)
         y = self.classifier(featuremap)
         return y
