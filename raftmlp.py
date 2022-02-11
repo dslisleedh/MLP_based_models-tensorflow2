@@ -68,8 +68,9 @@ class RaftTokenMixingBlock(tf.keras.layers.Layer):
                  c,
                  h,
                  w,
+                 survival_prob,
                  e=2,
-                 r=2
+                 r=2,
                  ):
         super(RaftTokenMixingBlock, self).__init__()
         self.r = r
@@ -77,6 +78,7 @@ class RaftTokenMixingBlock(tf.keras.layers.Layer):
         self.o = c//r
         self.h = h
         self.w = w
+        self.survival_prob = survival_prob
         self.e = e
 
         self.lnv = tf.keras.layers.LayerNormalization()
@@ -89,6 +91,9 @@ class RaftTokenMixingBlock(tf.keras.layers.Layer):
                                   )
 
     def call(self, inputs, **kwargs):
+        stochastic_depth = tf.keras.backend.random_bernoulli(shape=(1,),
+                                                             p=self.survival_prob
+                                                             )
         y = self.lnv(inputs)
         y = einops.rearrange(y, 'b (h w) (r o) -> b (o w) (r h)',
                              h=self.h, w=self.w, r=self.r, o=self.o
@@ -97,7 +102,7 @@ class RaftTokenMixingBlock(tf.keras.layers.Layer):
         y = einops.rearrange(y, 'b (o w) (r h) -> b (h w) (r o)',
                              h=self.h, w=self.w, r=self.r, o=self.o
                              )
-        inputs = y + inputs
+        inputs = (y * stochastic_depth) + inputs
         y = self.lnh(inputs)
         y = einops.rearrange(y, 'b (h w) (r o) -> b (o h) (r w)',
                              h=self.h, w=self.w, r=self.r, o=self.o
@@ -106,13 +111,14 @@ class RaftTokenMixingBlock(tf.keras.layers.Layer):
         y = einops.rearrange(y, 'b (o h) (r w) -> b (h w) (r o)',
                              h=self.h, w=self.w, r=self.r, o=self.o
                              )
-        return y + inputs
+        return (y * stochastic_depth) + inputs
 
 
 class ChannelMixingBlock(tf.keras.layers.Layer):
-    def __init__(self, c):
+    def __init__(self, c, survival_prob):
         super(ChannelMixingBlock, self).__init__()
         self.c = c
+        self.survival_prob = survival_prob
 
         self.forward = tf.keras.Sequential([
             tf.keras.layers.LayerNormalization(),
@@ -120,23 +126,28 @@ class ChannelMixingBlock(tf.keras.layers.Layer):
         ])
 
     def call(self, inputs, **kwargs):
-        return self.forward(inputs) + inputs
+        stochastic_depth = tf.keras.backend.random_bernoulli(shape=(1,),
+                                                             p=self.survival_prob
+                                                             )
+        return (self.forward(inputs) * stochastic_depth) + inputs
 
 
 class RaftBlock(tf.keras.layers.Layer):
     def __init__(self,
                  c,
                  h,
-                 w
+                 w,
+                 survival_prob
                  ):
         super(RaftBlock, self).__init__()
         self.c = c
         self.h = h
         self.w = w
+        self.survival_prob = survival_prob
 
         self.forward = tf.keras.Sequential([
-            RaftTokenMixingBlock(self.c, self.h, self.w),
-            ChannelMixingBlock(self.c)
+            RaftTokenMixingBlock(self.c, self.h, self.w, self.survival_prob),
+            ChannelMixingBlock(self.c, self.survival_prob)
         ])
 
     def call(self, inputs, **kwargs):
@@ -150,6 +161,7 @@ class Level(tf.keras.layers.Layer):
                  w,
                  c,
                  num_raftblocks,
+                 survival_prob
                  ):
         super(Level, self).__init__()
         self.layer = layer
@@ -158,13 +170,16 @@ class Level(tf.keras.layers.Layer):
         self.w = w
         self.c = c
         self.num_raftblocks = num_raftblocks
+        self.survival_prob = survival_prob
 
         self.forward = tf.keras.Sequential([
-            MultiScalePatchEmbedding(self.r, self.c, m=[0] if self.layer == 3 else [0, 1])
+            MultiScalePatchEmbedding(self.r, self.c, m=[0] if self.layer == 4 else [0, 1])
         ] + [
             RaftBlock(self.c,
                       self.h,
-                      self.w) for _ in range(num_raftblocks)
+                      self.w,
+                      self.survival_prob
+                      ) for _ in range(num_raftblocks)
         ] + [
             Rearrange('b (h w) c -> b h w c',
                       h=self.h, w=self.w
@@ -176,37 +191,44 @@ class Level(tf.keras.layers.Layer):
 
 
 class RaftMlp(tf.keras.models.Model):
+    '''
+    train input size : 256
+    test/inference input size : 224
+    '''
     def __init__(self,
                  num_blocks,
                  num_channels,
                  num_classes,
-                 input_size=224
+                 input_size=224,
+                 stochastic_depth=.1
                  ):
         super(RaftMlp, self).__init__()
         self.num_blocks = num_blocks
         self.num_channels = num_channels
         self.num_classes = num_classes
         self.input_size = input_size
+        self.stochastic_depth = stochastic_depth
 
         self.augmentation = tf.keras.Sequential([
             tf.keras.layers.experimental.preprocessing.RandomRotation(factor=.015),
-            tf.keras.layers.experimental.preprocessing.RandomCrop(height=224, width=224)
+            tf.keras.layers.experimental.preprocessing.RandomCrop(height=self.input_size, width=self.input_size)
         ])
         self.levels = tf.keras.Sequential([
             Level(layer=i+1,
                   h=self.input_size // (2 ** (i + 2)),
                   w=self.input_size // (2 ** (i + 2)),
                   c=self.num_channels[i],
-                  num_raftblocks=self.num_blocks[i]
+                  num_raftblocks=self.num_blocks[i],
+                  survival_prob=1-self.stochastic_depth
                   ) for i in range(4)
         ])
 
         self.classifier = tf.keras.Sequential([
-            Rearrange('b h w c -> b (h w) c'),
             tf.keras.layers.LayerNormalization(),
-            tf.keras.layers.GlobalAvgPool1D(),
+            tf.keras.layers.GlobalAvgPool2D(),
             tf.keras.layers.Dense(self.num_classes,
-                                  activation='softmax'
+                                  activation='softmax',
+                                  kernel_initializer=tf.keras.initializers.zeros()
                                   )
         ])
 
