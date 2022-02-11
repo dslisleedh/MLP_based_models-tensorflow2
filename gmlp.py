@@ -1,4 +1,5 @@
 import tensorflow as tf
+from utils import Droppath
 
 
 class SpatialGatingUnit(tf.keras.layers.Layer):
@@ -40,13 +41,11 @@ class GmlpBlock(tf.keras.layers.Layer):
             SpatialGatingUnit(self.n_patches),
             tf.keras.layers.Dense(d_model)
         ])
+        self.droppath = Droppath(survival_prob) if survival_prob != 1. else tf.keras.layers.Layer()
 
     @tf.function
     def call(self, inputs, **kwargs):
-        stochastic_depth = tf.keras.backend.random_bernoulli(shape=(1,),
-                                                             p=self.survival_prob
-                                                             )
-        return self.forward(inputs) * stochastic_depth + inputs
+        return self.droppath(self.forward(inputs)) + inputs
 
 
 class Gmlp(tf.keras.models.Model):

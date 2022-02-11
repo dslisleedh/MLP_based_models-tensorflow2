@@ -1,5 +1,6 @@
 import tensorflow as tf
 import einops
+from utils import Droppath
 from einops.layers.keras import Rearrange
 
 
@@ -89,11 +90,9 @@ class RaftTokenMixingBlock(tf.keras.layers.Layer):
         self.horizon_fc = FCBlock(self.r * self.w,
                                   e=self.e
                                   )
+        self.droppath = Droppath(self.survival_prob) if self.survival_prob != 1. else tf.keras.layers.Layer()
 
     def call(self, inputs, **kwargs):
-        stochastic_depth = tf.keras.backend.random_bernoulli(shape=(1,),
-                                                             p=self.survival_prob
-                                                             )
         y = self.lnv(inputs)
         y = einops.rearrange(y, 'b (h w) (r o) -> b (o w) (r h)',
                              h=self.h, w=self.w, r=self.r, o=self.o
@@ -102,7 +101,7 @@ class RaftTokenMixingBlock(tf.keras.layers.Layer):
         y = einops.rearrange(y, 'b (o w) (r h) -> b (h w) (r o)',
                              h=self.h, w=self.w, r=self.r, o=self.o
                              )
-        inputs = (y * stochastic_depth) + inputs
+        inputs = self.droppath(y) + inputs
         y = self.lnh(inputs)
         y = einops.rearrange(y, 'b (h w) (r o) -> b (o h) (r w)',
                              h=self.h, w=self.w, r=self.r, o=self.o
@@ -111,7 +110,7 @@ class RaftTokenMixingBlock(tf.keras.layers.Layer):
         y = einops.rearrange(y, 'b (o h) (r w) -> b (h w) (r o)',
                              h=self.h, w=self.w, r=self.r, o=self.o
                              )
-        return (y * stochastic_depth) + inputs
+        return self.droppath(y) + inputs
 
 
 class ChannelMixingBlock(tf.keras.layers.Layer):
@@ -208,6 +207,7 @@ class RaftMlp(tf.keras.models.Model):
         self.num_classes = num_classes
         self.input_size = input_size
         self.stochastic_depth = stochastic_depth
+        self.survival_prob = 1. - tf.linspace(0., self.stochastic_depth, 4)
 
         self.augmentation = tf.keras.Sequential([
             tf.keras.layers.experimental.preprocessing.RandomRotation(factor=.015),
@@ -219,7 +219,7 @@ class RaftMlp(tf.keras.models.Model):
                   w=self.input_size // (2 ** (i + 2)),
                   c=self.num_channels[i],
                   num_raftblocks=self.num_blocks[i],
-                  survival_prob=1-self.stochastic_depth
+                  survival_prob=self.survival_prob[i]
                   ) for i in range(4)
         ])
 

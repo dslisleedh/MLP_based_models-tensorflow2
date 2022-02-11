@@ -1,4 +1,5 @@
 import tensorflow as tf
+from utils import Droppath
 
 
 class PreAffine(tf.keras.layers.Layer):
@@ -85,13 +86,11 @@ class ResBlock(tf.keras.layers.Layer):
             Mlp(self.n_dims),
             PostAffine(self.n_dims, self.depth)
         ])
+        self.droppath = Droppath(self.survival_prob) if self.survival_prob != 1. else tf.keras.layers.Layer()
 
     def call(self, inputs, **kwargs):
-        stochastic_depth = tf.keras.backend.random_bernoulli(shape=(1,),
-                                                             p=self.survival_prob
-                                                             )
-        z = self.Cross_patch(inputs) * stochastic_depth + inputs
-        y = self.Cross_channel(z) * stochastic_depth + z
+        z = self.droppath(self.Cross_patch(inputs)) + inputs
+        y = self.droppath(self.Cross_channel(z)) + z
         return y
 
 

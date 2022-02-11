@@ -1,4 +1,5 @@
 import tensorflow as tf
+from utils import Droppath
 
 
 class MlpBlock(tf.keras.layers.Layer):
@@ -51,13 +52,11 @@ class MixerLayer(tf.keras.layers.Layer):
             tf.keras.layers.LayerNormalization(),
             MlpBlock(self.dim_s, self.projection_dim, self.dropout_rate),
         ])
+        self.droppath = Droppath(self.survival_prob) if self.survival_prob != 1. else tf.keras.layers.Layer()
 
     def call(self, inputs, *args, **kwargs):
-        stochastic_depth = tf.keras.backend.random_bernoulli(shape=(1,),
-                                                             p=self.survival_prob
-                                                             )
-        u = self.D_c(inputs) * stochastic_depth + inputs
-        y = self.D_s(u) * stochastic_depth + u
+        u = self.droppath(self.D_c(inputs)) + inputs
+        y = self.droppath(self.D_s(u)) + u
         return y
 
 
