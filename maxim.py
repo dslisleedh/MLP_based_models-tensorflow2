@@ -8,6 +8,18 @@ incomplete
 '''
 
 
+def _set_gridsblocks_makers(h, w, b, d):
+    make_blocks = Rearrange('B (H b1) (W b2) C -> B (H W) (b1 b2) C',
+                            H=h // b, W=w // b)
+    recon_blocks = Rearrange('B (H W) (b1 b2) C -> B (H b1) (W b2) C',
+                             H=w // b, W=w // b, b1=b, b2=b)
+    make_grids = Rearrange('B (d1 H) (d2 W) C -> B (H W) (d1 d2) C',
+                           H=h // d, W=w // d)
+    recon_grids = Rearrange('B (H W) (d1 d2) C -> B (d1 H) (d2 W) C',
+                            H=h // d, W=w // d, d1=d, d2=d)
+    return make_blocks, recon_blocks, make_grids, recon_grids
+
+
 class MabGmlpBlock(tf.keras.layers.Layer):
     def __init__(self,
                  c,
@@ -82,27 +94,17 @@ class Mab(tf.keras.layers.Layer):
                                   kernel_initializer='lecun_normal'
                                   )
         ])
-        self._set_gridsblocks_makers(self.h,
-                                     self.w,
-                                     self.b,
-                                     self.d
-                                     )
+        self.make_blocks, self.recon_blocks, self.make_grids, self.recon_grids = _set_gridsblocks_makers(self.h,
+                                                                                                         self.w,
+                                                                                                         self.b,
+                                                                                                         self.d
+                                                                                                         )
         self.gmlp = MabGmlpBlock(self.c//2,
                                  self.n_patches
                                  )
         self.dense = tf.keras.layers.Dense(self.c,
                                            activation='linear'
                                            )
-
-    def _set_gridsblocks_makers(self, h, w, b, d):
-        self.make_blocks = Rearrange('B (H b1) (W b2) C -> B (H W) (b1 b2) C',
-                                     H=h // b, W=w // b)
-        self.recon_blocks = Rearrange('B (H W) (b1 b2) C -> B (H b1) (W b2) C',
-                                      H=w // b, W=w // b, b1=b, b2=b)
-        self.make_grids = Rearrange('B (d1 H) (d2 W) C -> B (H W) (d1 d2) C',
-                                    H=h // d, W=w // d)
-        self.recon_grids = Rearrange('B (H W) (d1 d2) C -> B (d1 H) (d2 W) C',
-                                     H=h // d, W=w // d, d1=d, d2=d)
 
     def call(self, inputs, **kwargs):
         y = self.forward(inputs)
@@ -183,3 +185,69 @@ class Rcab(tf.keras.layers.Layer):
         f__ = tf.multiply(f_, spatial_attention)
         return inputs + f__
 
+
+class Macg(tf.keras.layers.Layer):
+    def __init__(self,
+                 h,
+                 w,
+                 c,
+                 b,
+                 d,
+                 e=6
+                 ):
+        super(Macg, self).__init__()
+        self.h = h
+        self.w = w
+        self.c = c
+        self.d = d
+        self.b = b
+        self.e = e
+
+
+class Cgb(tf.keras.layers.Layer):
+    def __init__(self,
+                 h,
+                 w,
+                 c,
+                 split_size
+                 ):
+        super(Cgb, self).__init__()
+        self.h = h
+        self.w = w
+        self.c = c
+        self.b = self.d = split_size
+
+        self.DenseX = tf.keras.layers.Dense(self.c,
+                                            activation='linear'
+                                            )
+        self.DenseY = tf.keras.layers.Dense(self.c,
+                                            activation='linear'
+                                            )
+        self.ForwardX = tf.keras.Sequential([
+            tf.keras.layers.LayerNormalization(),
+            tf.keras.layers.Dense(self.c * 6,
+                                  activation='gelu'
+                                  )
+        ])
+        self.ForwardY = tf.keras.Sequential([
+            tf.keras.layers.LayerNormalization(),
+            tf.keras.layers.Dense(self.c * 6,
+                                  activation='gelu'
+                                  )
+        ])
+        self.Macg_XtoY = Mab(h, w, c, split_size)
+        self.Macg_YtoX = Mab(h, w, c, split_size)
+        self.DenseX2 = tf.keras.layers.Dense(self.c,
+                                             activation='linear'
+                                             )
+        self.DenseY2 = tf.keras.layers.Dense(self.c,
+                                             activation='linear'
+                                             )
+
+    def call(self, x, y, **kwargs):
+        x1 = self.DenseX(x)
+        y1 = self.DenseY(y)
+        x2 = self.ForwardX(x1)
+        y2 = self.ForwardY(y1)
+        x_hat = tf.multiply(x2, self.Macg_YtoX(y2))
+        y_hat = tf.multiply(y2, self.Macg_XtoY(x2))
