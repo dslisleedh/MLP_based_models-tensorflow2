@@ -7,3 +7,8 @@
 ## gMLP [[Paper]](https://arxiv.org/abs/2105.08050)  
 
 ## RaftMLP [[Paper]](https://arxiv.org/abs/2108.04384)  
+
+## S^2MLP [[Paper]](https://arxiv.org/abs/2106.07477)
+
+## ConvMLP [[Paper]](https://arxiv.org/abs/2109.04454)
+
