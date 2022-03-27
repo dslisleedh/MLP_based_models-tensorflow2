@@ -1,3 +1,4 @@
+from einops.layers.keras import Rearrange
 import tensorflow as tf
 
 
@@ -10,13 +11,7 @@ class FourierTransformLayer(tf.keras.layers.Layer):
 
     @tf.function
     def call(self, inputs, *args, **kwargs):
-        residual = tf.transpose(inputs,
-                                perm=[0, 3, 1, 2]
-                                )
-        residual = tf.math.real(tf.signal.fft2d(tf.cast(residual, 'complex64')))
-        residual = tf.transpose(residual,
-                                perm=[0, 2, 3, 1]
-                                )
+        residual = tf.math.real(tf.signal.fft2d(tf.cast(inputs, 'complex64')))
         return self.ln(inputs + residual)
 
 
@@ -110,12 +105,15 @@ class FNet(tf.keras.models.Model):
         self.n_labels = n_labels
         self.expansion_rate = expansion_rate
 
-        self.patch_embedding = tf.keras.layers.Conv2D(self.n_filters,
-                                                      activation='linear',
-                                                      kernel_size=self.patch_size,
-                                                      strides=self.patch_size,
-                                                      padding='VALID'
-                                                      )
+        self.patch_embedding = tf.keras.Sequential([
+            tf.keras.layers.Conv2D(self.n_filters,
+                                   activation='linear',
+                                   kernel_size=self.patch_size,
+                                   strides=self.patch_size,
+                                   padding='VALID'
+                                   ),
+            Rearrange('b h w c -> b (h w) c')
+        ])
 
         self.encoder = FNetEncoder(n_filters,
                                    n_layers,
