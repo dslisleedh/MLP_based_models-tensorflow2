@@ -101,17 +101,19 @@ class ResMlp(tf.keras.models.Model):
     '''
     def __init__(self,
                  patch_res,
+                 input_res,
                  n_layers,
                  dims,
                  n_labels,
                  stochastic_depth_rate=.1
                  ):
         super(ResMlp, self).__init__()
-        if (224 % patch_res) != 0:
+        if (input_res) != 0:
             raise ValueError('size error')
         else:
             self.patch_res = patch_res
-            self.n_patches = int((tf.square(224) / tf.square(self.patch_res)).numpy())
+            self.input_res = input_res
+            self.n_patches = int((tf.square(input_res) / tf.square(self.patch_res)).numpy())
         self.n_layers = n_layers
         self.dims = dims
         self.n_labels = n_labels

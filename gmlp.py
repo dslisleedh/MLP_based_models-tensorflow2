@@ -59,7 +59,7 @@ class Gmlp(tf.keras.models.Model):
                  survival_prob,
                  num_classes,
                  n_layers=30,
-                 aug_res=224,
+                 input_res=224,
                  patch_res=16):
         super(Gmlp, self).__init__()
         self.d_model = d_model
@@ -67,10 +67,10 @@ class Gmlp(tf.keras.models.Model):
         self.survival_prob = survival_prob
         self.num_classes = num_classes
         self.n_layers = n_layers
-        if (aug_res % patch_res) != 0:
+        if (input_res % patch_res) != 0:
             raise ValueError('size error')
         else:
-            self.aug_res = aug_res
+            self.input_res = input_res
             self.patch_res = patch_res
             self.n_patches = int((tf.square(224) / tf.square(self.patch_res)).numpy())
 

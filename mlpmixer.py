@@ -66,6 +66,7 @@ class MlpMixer(tf.keras.models.Model):
     '''
     def __init__(self,
                  num_mixer_layers:int,
+                 input_res:int,
                  patch_res:int,
                  hidden_size_c:int,
                  dim_dc:int,
@@ -76,11 +77,12 @@ class MlpMixer(tf.keras.models.Model):
                  ):
         super(MlpMixer, self).__init__()
         self.num_mixer_layers = num_mixer_layers
-        if (224 % patch_res) != 0:
+        if (input_res % patch_res) != 0:
             raise ValueError('size error')
         else:
+            self.input_res = input_res
             self.patch_res = patch_res
-            self.n_patches = int((tf.square(224) / tf.square(self.patch_res)).numpy())
+            self.n_patches = int((tf.square(input_res) / tf.square(self.patch_res)).numpy())
         self.hidden_size_c = hidden_size_c
         self.dim_dc = dim_dc
         self.dim_ds = dim_ds

@@ -198,21 +198,21 @@ class RaftMlp(tf.keras.models.Model):
                  num_blocks,
                  num_channels,
                  num_classes,
-                 input_size=224,
+                 input_res=224,
                  stochastic_depth=.1
                  ):
         super(RaftMlp, self).__init__()
         self.num_blocks = num_blocks
         self.num_channels = num_channels
         self.num_classes = num_classes
-        self.input_size = input_size
+        self.input_res = input_res
         self.stochastic_depth = stochastic_depth
         self.survival_prob = 1. - tf.linspace(0., self.stochastic_depth, 4)
 
         self.levels = tf.keras.Sequential([
             Level(layer=i+1,
-                  h=self.input_size // (2 ** (i + 2)),
-                  w=self.input_size // (2 ** (i + 2)),
+                  h=self.input_res // (2 ** (i + 2)),
+                  w=self.input_res // (2 ** (i + 2)),
                   c=self.num_channels[i],
                   num_raftblocks=self.num_blocks[i],
                   survival_prob=self.survival_prob[i]
