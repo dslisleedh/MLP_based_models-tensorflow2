@@ -74,10 +74,6 @@ class Gmlp(tf.keras.models.Model):
             self.patch_res = patch_res
             self.n_patches = int((tf.square(224) / tf.square(self.patch_res)).numpy())
 
-        self.augmentation = tf.keras.Sequential([
-            tf.keras.layers.experimental.preprocessing.RandomRotation(factor=.015),
-            tf.keras.layers.experimental.preprocessing.RandomCrop(height=224, width=224)
-        ])
         self.patch_projector = tf.keras.Sequential([
             tf.keras.layers.Conv2D(self.d_model,
                                    kernel_size=(self.patch_res, self.patch_res),
@@ -105,8 +101,6 @@ class Gmlp(tf.keras.models.Model):
 
     @tf.function
     def call(self, inputs, training=None, mask=None):
-        if training:
-            inputs = self.augmentation(inputs)
         patches = self.patch_projector(inputs)
         featuremap = self.blocks(patches)
         y = self.classifier(featuremap)

@@ -88,10 +88,6 @@ class MlpMixer(tf.keras.models.Model):
         self.dropout_rate = dropout_rate
         self.stochastic_depth = stochastic_depth
 
-        self.augmentation = tf.keras.Sequential([
-            tf.keras.layers.experimental.preprocessing.RandomRotation(factor=.015),
-            tf.keras.layers.experimental.preprocessing.RandomCrop(height=224, width=224)
-        ])
         self.PatchConv = tf.keras.Sequential([
             tf.keras.layers.Conv2D(self.hidden_size_c,
                                    kernel_size=(self.patch_res, self.patch_res),
@@ -122,8 +118,6 @@ class MlpMixer(tf.keras.models.Model):
 
     @tf.function
     def call(self, inputs, training=None, mask=None):
-        if training:
-            inputs = self.augmentation(inputs)
         patches = self.PatchConv(inputs)
         featuremap = self.Mixers(patches)
         y = self.classifier(featuremap)

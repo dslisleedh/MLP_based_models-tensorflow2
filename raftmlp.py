@@ -209,10 +209,6 @@ class RaftMlp(tf.keras.models.Model):
         self.stochastic_depth = stochastic_depth
         self.survival_prob = 1. - tf.linspace(0., self.stochastic_depth, 4)
 
-        self.augmentation = tf.keras.Sequential([
-            tf.keras.layers.experimental.preprocessing.RandomRotation(factor=.015),
-            tf.keras.layers.experimental.preprocessing.RandomCrop(height=self.input_size, width=self.input_size)
-        ])
         self.levels = tf.keras.Sequential([
             Level(layer=i+1,
                   h=self.input_size // (2 ** (i + 2)),
@@ -234,8 +230,6 @@ class RaftMlp(tf.keras.models.Model):
 
     @tf.function
     def call(self, inputs, training=None, mask=None):
-        if training:
-            inputs = self.augmentation(inputs)
         featuremap = self.levels(inputs)
         y = self.classifier(featuremap)
         return y

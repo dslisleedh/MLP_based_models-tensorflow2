@@ -117,10 +117,6 @@ class ResMlp(tf.keras.models.Model):
         self.n_labels = n_labels
         self.stochastic_depth_rate = stochastic_depth_rate
 
-        self.augmentation = tf.keras.Sequential([
-            tf.keras.layers.experimental.preprocessing.RandomRotation(factor=.015),
-            tf.keras.layers.experimental.preprocessing.RandomCrop(height=224, width=224)
-        ])
         self.patch_projector = tf.keras.Sequential([
             tf.keras.layers.Conv2D(self.dims,
                                    kernel_size=(self.patch_res, self.patch_res),
@@ -149,8 +145,6 @@ class ResMlp(tf.keras.models.Model):
 
     @tf.function
     def call(self, inputs, training=None, mask=None):
-        if training:
-            inputs = self.augmentation(inputs)
         patches = self.patch_projector(inputs)
         featuremap = self.blocks(patches)
         y = self.classifier(featuremap)

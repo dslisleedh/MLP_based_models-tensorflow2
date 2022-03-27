@@ -115,10 +115,6 @@ class S2Mlp(tf.keras.models.Model):
         self.num_classes = num_classes
         self.stochastic_depth = stochastic_depth
 
-        self.augmentation = tf.keras.Sequential([
-            tf.keras.layers.experimental.preprocessing.RandomRotation(factor=.015),
-            tf.keras.layers.experimental.preprocessing.RandomCrop(height=224, width=224)
-        ])
         self.PatchConv = tf.keras.layers.Conv2D(filters=3*self.p*self.p,
                                                 kernel_size=self.p,
                                                 activation='linear',
@@ -140,8 +136,6 @@ class S2Mlp(tf.keras.models.Model):
         ])
 
     def call(self, inputs, training=None, mask=None):
-        if training:
-            inputs = self.augmentation(inputs)
         patches = self.PatchConv(inputs)
         featuremap = self.Blocks(patches)
         y = self.classifier(featuremap)
