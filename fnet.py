@@ -2,21 +2,14 @@ import tensorflow as tf
 
 
 class FourierTransformLayer(tf.keras.layers.Layer):
-    def __init__(self,
-                 ):
+    def __init__(self):
         super(FourierTransformLayer, self).__init__()
 
         self.ln = tf.keras.layers.LayerNormalization()
 
     @tf.function
     def call(self, inputs, *args, **kwargs):
-        residual = tf.transpose(inputs,
-                                perm=[0, 3, 1, 2]
-                                )
-        residual = tf.math.real(tf.signal.fft2d(tf.cast(residual, 'complex64')))
-        residual = tf.transpose(residual,
-                                perm=[0, 2, 3, 1]
-                                )
+        residual = tf.math.real(tf.signal.fft2d(tf.cast(inputs, 'complex64')))
         return self.ln(inputs + residual)
 
 
@@ -81,11 +74,12 @@ class FNetEncoder(tf.keras.layers.Layer):
         self.dropout_rate = dropout_rate
         self.expansion_rate = expansion_rate
 
+        dropouts = tf.linspace(0., self.dropout_rate, self.n_layers)
         self.forward = tf.keras.Sequential([
             FBlock(self.n_filters,
-                   self.dropout_rate,
+                   dropouts[i],
                    self.expansion_rate,
-                   ) for _ in range(self.n_layers)
+                   ) for i in range(self.n_layers)
         ])
 
     @tf.function
@@ -95,11 +89,11 @@ class FNetEncoder(tf.keras.layers.Layer):
 
 class FNet(tf.keras.models.Model):
     def __init__(self,
-                 patch_size,
-                 n_filters,
-                 n_layers,
-                 dropout_rate,
-                 n_labels,
+                 patch_size=8,
+                 n_filters=512,
+                 n_layers=8,
+                 dropout_rate=.25,
+                 n_labels=3,
                  expansion_rate=4
                  ):
         super(FNet, self).__init__()
@@ -110,12 +104,15 @@ class FNet(tf.keras.models.Model):
         self.n_labels = n_labels
         self.expansion_rate = expansion_rate
 
-        self.patch_embedding = tf.keras.layers.Conv2D(self.n_filters,
-                                                      activation='linear',
-                                                      kernel_size=self.patch_size,
-                                                      strides=self.patch_size,
-                                                      padding='VALID'
-                                                      )
+        self.patch_embedding = tf.keras.Sequential([
+            tf.keras.layers.Conv2D(self.n_filters,
+                                   activation='linear',
+                                   kernel_size=self.patch_size,
+                                   strides=self.patch_size,
+                                   padding='VALID'
+                                   ),
+            tf.keras.layers.Reshape((-1, self.n_filters)),
+        ])
 
         self.encoder = FNetEncoder(n_filters,
                                    n_layers,
@@ -123,7 +120,7 @@ class FNet(tf.keras.models.Model):
                                    expansion_rate
                                    )
         self.classifier = tf.keras.Sequential([
-            tf.keras.layers.GlobalAvgPool2D(),
+            tf.keras.layers.GlobalAvgPool1D(),
             tf.keras.layers.Dense(self.n_labels,
                                   activation='softmax',
                                   kernel_initializer=tf.keras.initializers.zeros()
@@ -136,3 +133,4 @@ class FNet(tf.keras.models.Model):
         featuremap = self.encoder(patches)
         y_hat = self.classifier(featuremap)
         return y_hat
+
