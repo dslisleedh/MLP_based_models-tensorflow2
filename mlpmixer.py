@@ -3,9 +3,10 @@ from utils import Droppath
 
 
 class MlpBlock(tf.keras.layers.Layer):
-    def __init__(self, n_nodes:int,
-                 recon_nodes:int,
-                 dropout_rate:float):
+    def __init__(self,
+                 n_nodes :int,
+                 recon_nodes :int,
+                 dropout_rate :float):
         super(MlpBlock, self).__init__()
         self.n_nodes = n_nodes
         self.recon_nodes = recon_nodes
@@ -19,10 +20,9 @@ class MlpBlock(tf.keras.layers.Layer):
                                         activation='linear',
                                         kernel_initializer='lecun_normal'
                                         )
-        self.dropout = tf.keras.layers.Dropout(self.dropout_rate)
 
     def call(self, inputs, *args, **kwargs):
-        return self.dropout(self.w2(tf.nn.gelu(self.w1(inputs))))
+        return self.w2(tf.nn.gelu(self.w1(inputs)))
 
 
 class MixerLayer(tf.keras.layers.Layer):
@@ -65,14 +65,14 @@ class MlpMixer(tf.keras.models.Model):
     IMG input resolution : 256
     '''
     def __init__(self,
-                 num_mixer_layers:int,
-                 patch_res:int,
-                 hidden_size_c:int,
-                 dim_dc:int,
-                 dim_ds:int,
-                 num_labels:int,
-                 dropout_rate:float = 0.0,
-                 stochastic_depth:float = 0.1,
+                 num_mixer_layers: int,
+                 patch_res: int,
+                 hidden_size_c: int,
+                 dim_dc: int,
+                 dim_ds: int,
+                 num_labels: int,
+                 dropout_rate: float = 0.0,
+                 stochastic_depth: float = 0.1,
                  ):
         super(MlpMixer, self).__init__()
         self.num_mixer_layers = num_mixer_layers
