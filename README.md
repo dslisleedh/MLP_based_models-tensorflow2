@@ -12,3 +12,4 @@
 
 ## ConvMLP [[Paper]](https://arxiv.org/abs/2109.04454)
 
+## GFNet [[Paper]](https://arxiv.org/abs/2107.00645)
