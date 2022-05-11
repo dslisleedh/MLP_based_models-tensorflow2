@@ -101,26 +101,24 @@ class ResMlp(tf.keras.models.Model):
     '''
     def __init__(self,
                  patch_res,
+                 input_res,
                  n_layers,
                  dims,
                  n_labels,
                  stochastic_depth_rate=.1
                  ):
         super(ResMlp, self).__init__()
-        if (224 % patch_res) != 0:
+        if (input_res) != 0:
             raise ValueError('size error')
         else:
             self.patch_res = patch_res
-            self.n_patches = int((tf.square(224) / tf.square(self.patch_res)).numpy())
+            self.input_res = input_res
+            self.n_patches = int((tf.square(input_res) / tf.square(self.patch_res)).numpy())
         self.n_layers = n_layers
         self.dims = dims
         self.n_labels = n_labels
         self.stochastic_depth_rate = stochastic_depth_rate
 
-        self.augmentation = tf.keras.Sequential([
-            tf.keras.layers.experimental.preprocessing.RandomRotation(factor=.015),
-            tf.keras.layers.experimental.preprocessing.RandomCrop(height=224, width=224)
-        ])
         self.patch_projector = tf.keras.Sequential([
             tf.keras.layers.Conv2D(self.dims,
                                    kernel_size=(self.patch_res, self.patch_res),
@@ -149,8 +147,6 @@ class ResMlp(tf.keras.models.Model):
 
     @tf.function
     def call(self, inputs, training=None, mask=None):
-        if training:
-            inputs = self.augmentation(inputs)
         patches = self.patch_projector(inputs)
         featuremap = self.blocks(patches)
         y = self.classifier(featuremap)
