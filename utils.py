@@ -15,5 +15,5 @@ class Droppath(tf.keras.layers.Layer):
                                                         )
             return inputs * epsilon
         else:
-            return inputs
+            return inputs * self.prob
 
